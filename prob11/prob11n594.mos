@@ -1,0 +1,43 @@
+model "kissing number"
+  uses "mmxnlp"
+  ! ref: "https://www.sciencedirect.com/science/article/abs/pii/S157106530401039X"
+
+ parameters
+    n = 594
+    d = 11
+ end-parameters
+
+  !  n points in d-dimensional space
+  declarations
+    x: array(1..n, 1..d) of mpvar
+    alpha: mpvar
+    obj: linctr
+  end-declarations
+
+
+  ! Constraint: norm squared of each point = 4
+    forall(i in 1..n) do
+      sum(k in 1..d) x(i,k) * x(i,k) = 4
+    end-do
+
+	! Constraint: inner product constraint for all point pairs
+	forall(i in 1..n-1, j in i+1..n) do
+	  4 -  sum(k in 1..d) x(i,k) * x(j,k) >= 2 * alpha
+	end-do
+
+  obj := alpha
+
+  loadprob(obj)
+  setparam("xprs_objsense",-1)
+
+  writeprob("prob11n" + n + "d" + d + ".lp","l")
+
+  setparam("XPRS_MAXTIME", 100)
+  setparam("XNLP_VERBOSE", true)
+  ! Objective
+  maximise(alpha)
+
+  ! Solve
+  writeln("Objective value: ( if alpha >= 1, then a better solution is found (SOTA alpha >= 1 for n = 593))", alpha.sol)
+  forall(i in 1..n, j in 1..d) writeln(i, " ", j, ": ", x(i,j).sol);
+end-model

@@ -1,0 +1,57 @@
+model "circle packing"
+  uses "mmxnlp"
+
+ parameters
+    n = 32
+    d = 2
+ end-parameters
+
+declarations
+  r: array(1..n) of mpvar      ! Radii
+  x: array(1..n) of mpvar      ! x-coordinates
+  y: array(1..n) of mpvar      ! y-coordinates
+  obj: linctr
+end-declarations
+
+
+    ! Bounds for variables
+    forall(i in 1..n) do
+    r(i) >= 0
+    r(i) <= 0.5
+    x(i) >= 0
+    x(i) <= 1
+    y(i) >= 0
+    y(i) <= 1
+    end-do
+
+    ! Ensure circles are within the unit square
+    forall(i in 1..n) do
+    r(i) <= x(i)
+    x(i) <= 1 - r(i)
+    r(i) <= y(i)
+    y(i) <= 1 - r(i)
+    end-do
+
+    ! Non-overlapping constraints
+    forall(i in 1..n-1, j in i+1..n) do
+        (x(i) - x(j))^2 + (y(i) - y(j))^2 >= (r(i) + r(j))^2
+    end-do
+
+    ! Objective: maximize the sum of the radii
+    obj := sum(i in 1..n) r(i)
+
+    loadprob(obj)
+    setparam("xprs_objsense",-1)
+
+    writeprob("prob12n" + n + ".lp","l")
+
+    setparam("XPRS_MAXTIME", 100)
+    setparam("XNLP_VERBOSE", true)
+    ! Objective
+    maximise(obj)
+
+    ! Solve
+    writeln("Objective value: ", obj.sol)
+    forall(i in 1..n) writeln(i, " radius: ", r(i).sol);
+    forall(i in 1..n) writeln(i, " coordinate (x,y): ", x(i).sol, " ", y(i).sol);
+end-model
