@@ -2,42 +2,53 @@ model "kissing number"
   uses "mmxnlp"
   ! ref: "https://www.sciencedirect.com/science/article/abs/pii/S157106530401039X"
 
- parameters
+  parameters
     n = 594
     d = 11
- end-parameters
+    limit = 100  ! Time limit
+    debug = false
+  end-parameters
 
-  !  n points in d-dimensional space
-  declarations
-    x: array(1..n, 1..d) of mpvar
+  public declarations
+    RN = 1..n
+    RD = 1..d
+    x: array(RN, RD) of mpvar    ! n points in d-dimensional space
     alpha: mpvar
-    obj: linctr
+    Obj: linctr
+    Norm: array(RN) of nlctr
+    Inner: dynamic array(RN,RN) of nlctr
   end-declarations
 
-
   ! Constraint: norm squared of each point = 4
-    forall(i in 1..n) do
-      sum(k in 1..d) x(i,k) * x(i,k) = 4
-    end-do
+  forall(i in RN)
+    Norm(i):= sum(k in RD) x(i,k)^2 = 4
 
-	! Constraint: inner product constraint for all point pairs
-	forall(i in 1..n-1, j in i+1..n) do
-	  4 -  sum(k in 1..d) x(i,k) * x(j,k) >= 2 * alpha
-	end-do
+  ! Constraint: inner product constraint for all point pairs
+  forall(i in 1..n-1, j in i+1..n)
+    Inner(i,j):= 4 -  sum(k in RD) x(i,k) * x(j,k) >= 2 * alpha
 
-  obj := alpha
-
-  loadprob(obj)
-  setparam("xprs_objsense",-1)
-
-  writeprob("prob11n" + n + "d" + d + ".lp","l")
-
-  setparam("XPRS_MAXTIME", 100)
-  setparam("XNLP_VERBOSE", true)
   ! Objective
+  Obj:= alpha
+
+  if debug then
+    setparam("XPRS_LOADNAMES", true)
+    loadprob(Obj)
+    setparam("XPRS_OBJSENSE", -1)
+    writeprob("prob11n" + n + "d" + d + ".lp","l")
+  end-if
+
+  setparam("XPRS_MAXTIME", limit)
+  setparam("XNLP_VERBOSE", true)
+  ! Solve
   maximise(alpha)
 
-  ! Solve
+  status:= getparam("XPRS_SOLSTATUS")
+  if status in {XPRS_SOLSTATUS_FEASIBLE,XPRS_SOLSTATUS_OPTIMAL} then
+
   writeln("Objective value: ( if alpha >= 1, then a better solution is found (SOTA alpha >= 1 for n = 593))", alpha.sol)
-  forall(i in 1..n, j in 1..d) writeln(i, " ", j, ": ", x(i,j).sol);
+  forall(i in RN, j in RD) writeln(i, " ", j, ": ", x(i,j).sol)
+  else
+    writeln("No solution found with time limit of ", limit, " sec")
+    exit(1)
+  end-if
 end-model
