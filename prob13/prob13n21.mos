@@ -1,65 +1,70 @@
 model "circle packing"
   uses "mmxnlp"
 
- parameters
+  parameters
     n = 21
-    d = 2
- end-parameters
+    limit = 10                 ! Time limit
+    debug = false
+  end-parameters
 
-declarations
-  r: array(1..n) of mpvar      ! Radii
-  x: array(1..n) of mpvar      ! x-coordinates
-  y: array(1..n) of mpvar      ! y-coordinates
-  w: mpvar
-  l: mpvar
-  obj: linctr
-end-declarations
+  public declarations
+    RN = 1..n
+    r: array(RN) of mpvar      ! Radii
+    x: array(RN) of mpvar      ! x-coordinates
+    y: array(RN) of mpvar      ! y-coordinates
+    w: mpvar                   ! Side length of rectangle (y-axis)
+    l: mpvar                   ! Side length of rectangle (x-axis)
+    Obj: linctr
+    Nonoverlap: dynamic array(RN,RN) of nlctr
+  end-declarations
 
 
-    ! Bounds for variables
-    0<= w
-    w <= 2
-    0 <= l
-    l <= 2
+  ! Bounds for variables (default lower bound is 0)
+  w <= 2
+  l <= 2
 
-    forall(i in 1..n) do
-    r(i) >= 0
+  forall(i in RN) do
     r(i) <= 0.5
-    x(i) >= 0
     x(i) <= 2
-    y(i) >= 0
     y(i) <= 2
-    end-do
+  end-do
 
-    ! Ensure circles are within the unit square
-    forall(i in 1..n) do
+  ! Ensure circles are within the rectangle
+  forall(i in RN) do
     r(i) <= x(i)
     x(i) <= l - r(i)
     r(i) <= y(i)
     y(i) <= w - r(i)
-    end-do
+  end-do
+  w + l = 2
 
-    w + l = 2
-    ! Non-overlapping constraints
-    forall(i in 1..n-1, j in i+1..n) do
-        (x(i) - x(j))^2 + (y(i) - y(j))^2 >= (r(i) + r(j))^2
-    end-do
+  ! Non-overlapping constraints
+  forall(i in 1..n-1, j in i+1..n)
+    Nonoverlap(i,j):= (x(i) - x(j))^2 + (y(i) - y(j))^2 >= (r(i) + r(j))^2
+ 
+  ! Objective: maximize the sum of the radii
+  Obj := sum(i in RN) r(i)
 
-    ! Objective: maximize the sum of the radii
-    obj := sum(i in 1..n) r(i)
-
-    loadprob(obj)
-    setparam("xprs_objsense",-1)
-
+  if debug then
+    setparam("XPRS_LOADNAMES", true)
+    loadprob(Obj)
+    setparam("XPRS_OBJSENSE", -1)
     writeprob("prob13n" + n + ".lp","l")
+  end-if
 
-    setparam("XPRS_MAXTIME", 10)
-    setparam("XNLP_VERBOSE", true)
-    ! Objective
-    maximise(obj)
+  setparam("XPRS_MAXTIME", limit)
+  setparam("XNLP_VERBOSE", true)
+  ! Solve
+  maximise(Obj)
 
-    ! Solve
-    writeln("Objective value: ", obj.sol)
-    forall(i in 1..n) writeln(i, " radius: ", r(i).sol);
-    forall(i in 1..n) writeln(i, " coordinate (x,y): ", x(i).sol, " ", y(i).sol);
+  status:= getparam("XPRS_SOLSTATUS")
+  if status in {XPRS_SOLSTATUS_FEASIBLE,XPRS_SOLSTATUS_OPTIMAL} then
+    writeln("Objective value (sum of radii): ", getobjval)
+    forall(i in RN) writeln(i, " radius: ", r(i).sol);
+    forall(i in RN) writeln(i, " coordinate (x,y): ", x(i).sol, " ", y(i).sol)
+  else
+    writeln("No solution found with time limit of ", limit, " sec")
+    exit(1)
+  end-if
+
 end-model
