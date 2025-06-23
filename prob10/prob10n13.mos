@@ -1,0 +1,67 @@
+model "Maximize minimal triangle area"
+  uses "mmxnlp"
+
+  parameters
+    n = 5       ! Number of points
+    limit = 300  ! Time limit (seconds)
+    debug = false
+    sqrt3 = sqrt(3)
+  end-parameters
+
+  declarations
+    RN = 1..n
+    x, y: array(RN) of mpvar
+    areas: array(RN, RN, RN) of mpvar
+    amin: mpvar  ! Minimum triangle area
+    aout: mpvar
+    Obj: linctr
+  end-declarations
+
+
+  ! Point (x[i], y[i]) must be inside unit rectangle
+  forall(i in RN) do
+    x(i) >= 0
+    x(i) <= 1
+    y(i) >= 0
+    y(i) <= 1
+  end-do
+
+  amin >= 0
+  amin <= 1
+  aout >= 0
+
+  ! Triangle area: A_ijk = 0.5 * | x_i(y_j - y_k) + x_j(y_k - y_i) + x_k(y_i - y_j) |
+  forall(i in 1..n-1, j in i+1..n, k in j+1..n) do
+    areas(i,j,k) = 0.5 * x(i)*(y(j) - y(k)) + x(j)*(y(k) - y(i)) + x(k)*(y(i) - y(j))
+    abs( areas(i,j,k) )  >= amin
+  end-do
+
+  aout = sum(i in 1..n-1) (x(i) * y(i+1) - x(i+1) * y(i)) + x(n)*y(1) - x(1)*y(n)
+
+  ! Objective: maximize amin
+  Obj := amin / 2
+  maximise(Obj)
+
+  if debug then
+    setparam("XPRS_LOADNAMES", true)
+    loadprob(Obj)
+    !writeprob("prob9n" + n + ".lp", "l")
+  end-if
+
+  setparam("XPRS_MAXTIME", limit)
+  setparam("XNLP_VERBOSE", true)
+
+  ! Solve the model
+  maximise(Obj)
+
+  status := getparam("XPRS_SOLSTATUS")
+  if status in {XPRS_SOLSTATUS_FEASIBLE, XPRS_SOLSTATUS_OPTIMAL} then
+    writeln("Max. minimal area (normalized by outer triangle): ", amin.sol / 2)
+    forall(i in RN)
+      writeln("Point ", i, ": (", x(i).sol, ", ", y(i).sol, ")")
+  else
+    writeln("No solution found within time limit ", limit)
+  end-if
+
+end-model
+

@@ -1,0 +1,62 @@
+model "Minimize outer hexagon size for packing unit hexagons"
+  uses "mmxnlp"
+
+  parameters
+    n = 11        ! Number of unit hexagons
+    m = 5         ! Number of points in a unit hexagon
+    inangle = 108 ! Degree of inner angle of a unit hexagon
+    limit = 100   ! Time limit in seconds
+    debug = false
+  end-parameters
+
+  declarations
+    RN = 1..n
+    RM = 1..n
+    x, y: array(RN, RM) of mpvar ! points of small hexagons
+    L: mpvar                     ! Side length of outer hexagon (to minimize)
+    Obj: linctr
+    dist: dynamic array(RN, RN) of nlctr
+  end-declarations
+
+  ! Variable bounds (assuming outer hexagon centered at (0,0))
+  forall(i in RN) do
+    x(i) >= -10
+    x(i) <= 10
+    y(i) >= -10
+    y(i) <= 10
+  end-do
+  L >= 1
+
+  ! Each small hexagon must be inside the outer hexagon
+  ! For each of the 6 directions (angle k*pi/3), the projection must be <= L-1
+  forall(i in RN, k in 0..5) do
+    x(i)*cos(k*3.141592653589793/3) + y(i)*sin(k*3.141592653589793/3) <= (L-1)
+    x(i)*cos(k*3.141592653589793/3) + y(i)*sin(k*3.141592653589793/3) >= -(L-1)
+  end-do
+
+  ! No overlap: distance between centers >= 2 (since unit hexagons have diameter 2)
+  forall(i in 1..n-1, j in i+1..n) do
+    dist(i,j):= (x(i)-x(j))^2 + (y(i)-y(j))^2 >= 3   ! 3 = (sqrt(3))^2, min center distance for unit hexagons
+  end-do
+
+  ! Objective: minimize L
+  Obj := L
+
+  if debug then
+    setparam("XPRS_LOADNAMES", true)
+    loadprob(Obj)
+    writeprob("hexagon_pack_n" + n + "_.lp","l")
+  end-if
+
+  setparam("XPRS_MAXTIME", limit)
+  setparam("XNLP_VERBOSE", true)
+  minimise(Obj)
+
+  status:= getparam("XPRS_SOLSTATUS")
+  if status in {XPRS_SOLSTATUS_FEASIBLE,XPRS_SOLSTATUS_OPTIMAL} then
+    writeln("Minimum outer hexagon side length: ", L.sol)
+    forall(i in RN) writeln("Hexagon ", i, ": (", x(i).sol, ", ", y(i).sol, ")")
+  else
+    writeln("No solution found with time limit of ", limit, " sec")
+  end-if
+end-model

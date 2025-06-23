@@ -1,0 +1,78 @@
+model "Maximize minimal triangle area"
+  uses "mmxnlp"
+
+  parameters
+    n = 4       ! Number of points
+    limit = 300  ! Time limit (seconds)
+    debug = false
+    sqrt3 = sqrt(3)
+  end-parameters
+
+  declarations
+    RN = 1..n
+    x, y: array(RN) of mpvar
+    areas: array(RN, RN, RN) of mpvar
+    amin: mpvar  ! Minimum triangle area
+    Obj: linctr
+  end-declarations
+
+  ! Triangle vertices: (0,0), (1,0), (0,2) => Area = 2 * sqrt3 / 2 = sqrt3
+  ! Point (x[i], y[i]) must be inside triangle
+  forall(i in RN) do
+    x(i) <= 2
+    y(i) <= sqrt3
+    y(i) <= sqrt3 * x(i)
+    y(i) <= sqrt3 -  sqrt3 * ( x(i) - 1 )
+  end-do
+
+  amin <= sqrt3
+  
+  ! debug setting
+  x(1) = 0
+  y(1) = 0
+  x(2) = 1
+  y(2) = sqrt3
+  x(3) = 2
+  y(3) = 0
+  x(4) = 1
+  y(4) = 1 / sqrt3
+  ! debug setting
+  
+  ! Triangle area: A_ijk = 0.5 * | x_i(y_j - y_k) + x_j(y_k - y_i) + x_k(y_i - y_j) |
+  forall(i in 1..n-2, j in i+1..n-1, k in j+1..n) do
+    areas(i,j,k) <= sqrt3 * 2
+    areas(i,j,k) >= -sqrt3 * 2
+    areas(i,j,k) = 0.5 * x(i)*(y(j) - y(k)) + x(j)*(y(k) - y(i)) + x(k)*(y(i) - y(j))
+    abs( areas(i,j,k) )  >= amin
+  end-do
+
+  ! Objective: maximize amin
+  Obj := amin / sqrt3
+  maximise(Obj)
+
+  if debug then
+    setparam("XPRS_LOADNAMES", true)
+    loadprob(Obj)
+    !writeprob("prob9n" + n + ".lp", "l")
+  end-if
+
+  setparam("XPRS_MAXTIME", limit)
+  setparam("XNLP_VERBOSE", true)
+
+  ! Solve the model
+  maximise(Obj)
+
+  status := getparam("XPRS_SOLSTATUS")
+  if status in {XPRS_SOLSTATUS_FEASIBLE, XPRS_SOLSTATUS_OPTIMAL} then
+    writeln("Max. minimal area (normalized by outer triangle): ", abs(amin.sol) / sqrt3)
+    forall(i in RN)
+      writeln("Point ", i, ": (", x(i).sol, ", ", y(i).sol, ")")
+    forall(i in 1..n-2, j in i+1..n-1, k in j+1..n) do
+      writeln("Area ", i,"," ,j, ",", k, ": (", abs(areas(i,j,k).sol) / sqrt3, ",", abs(x(i).sol*(y(j).sol - y(k).sol) + x(j).sol*(y(k).sol - y(i).sol) + x(k).sol*(y(i).sol - y(j).sol)) / (2 * sqrt3), ")")
+    end-do
+  else
+    writeln("No solution found within time limit ", limit)
+  end-if
+
+end-model
+
