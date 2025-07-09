@@ -2,7 +2,7 @@ model "Maximize minimal triangle area"
   uses "mmxnlp"
 
   parameters
-    n = 5       ! Number of points
+    n = 11       ! Number of points
     limit = 300  ! Time limit (seconds)
     debug = false
     sqrt3 = sqrt(3)
